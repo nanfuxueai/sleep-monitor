@@ -1,0 +1,10 @@
+{
+  "appId": "com.sleepmonitor.app",
+  "appName": "睡眠监测助手",
+  "webDir": ".",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": []
+  },
+  "includePlugins": []
+}

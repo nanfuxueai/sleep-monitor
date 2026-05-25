@@ -1,0 +1,69 @@
+name: 打包APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 设置 Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: 设置 Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
+      - name: 准备 web 资源目录
+        run: |
+          mkdir www
+          cp index.html www/
+          cp manifest.json www/
+          cp sw.js www/
+          cp vercel.json www/
+          cp -r icons www/
+
+      - name: 安装 Capacitor
+        run: |
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: 初始化 Android 项目
+        run: |
+          npx cap init "睡眠监测助手" "com.sleepmonitor.app" --web-dir=www
+          npx cap add android
+
+      - name: 添加 Android 权限（麦克风、常亮）
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          # 在 </manifest> 前添加权限声明
+          sed -i 's|</manifest>|<!-- 睡眠监测需要的权限 -->\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.WAKE_LOCK"/>\n    <uses-permission android:name="android.permission.INTERNET"/>\n</manifest>|' "$MANIFEST"
+
+      - name: 同步并编译 APK
+        run: npx cap sync
+
+      - name: 构建 APK (Debug)
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: 睡眠监测助手-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
