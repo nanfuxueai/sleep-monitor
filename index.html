@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>🌙 睡眠监测助手</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a1d3e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icons/icon-192.svg">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+/* ===== 全局 ===== */
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#0a0e27;color:#e0e0ff;font-family:-apple-system,'Segoe UI',sans-serif;
+  min-height:100vh;padding:12px;padding-bottom:80px;overflow-x:hidden
+}
+/* ===== 滚动条 ===== */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:#1a1d3e}
+::-webkit-scrollbar-thumb{background:#6c63ff;border-radius:4px}
+
+/* ===== 卡片 ===== */
+.card{
+  background:#1a1d3e;border-radius:16px;padding:18px;margin-bottom:14px;
+  box-shadow:0 4px 20px rgba(108,99,255,0.08);border:1px solid #2a2d5e
+}
+.card-title{font-size:14px;font-weight:600;color:#8888bb;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+
+/* ===== 顶部栏 ===== */
+.header{display:flex;justify-content:space-between;align-items:center;padding:8px 0 16px}
+.header h1{font-size:22px;background:linear-gradient(135deg,#6c63ff,#ff6b6b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.timer{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:#fff}
+.timer-label{font-size:12px;color:#8888bb;text-align:right}
+
+/* ===== 控制按钮 ===== */
+.btn-group{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{
+  padding:14px 36px;border:none;border-radius:50px;font-size:16px;font-weight:600;
+  cursor:pointer;transition:all .3s;display:flex;align-items:center;gap:8px
+}
+.btn:active{transform:scale(0.96)}
+.btn-primary{background:linear-gradient(135deg,#6c63ff,#4834d4);color:#fff;box-shadow:0 4px 15px rgba(108,99,255,0.3)}
+.btn-primary:hover{box-shadow:0 6px 25px rgba(108,99,255,0.5)}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-danger{background:linear-gradient(135deg,#ff6b6b,#ee5a24);color:#fff;box-shadow:0 4px 15px rgba(255,107,107,0.3)}
+.btn-secondary{background:#2a2d5e;color:#e0e0ff;box-shadow:0 2px 10px rgba(0,0,0,0.2)}
+.btn-secondary:hover{background:#3a3d7e}
+.btn-sm{padding:8px 18px;font-size:13px}
+
+/* ===== 音量圆形进度 ===== */
+.volume-container{display:flex;flex-direction:column;align-items:center;position:relative}
+.volume-ring{width:160px;height:160px}
+.volume-ring circle{fill:none;stroke-width:8}
+.volume-ring .bg{stroke:#2a2d5e}
+.volume-ring .progress{stroke:#6c63ff;stroke-linecap:round;transition:stroke-dashoffset .15s}
+.volume-center{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  text-align:center
+}
+.volume-value{font-size:36px;font-weight:700;color:#fff}
+.volume-label{font-size:12px;color:#8888bb}
+.volume-bar-bg{width:180px;height:6px;background:#2a2d5e;border-radius:3px;margin-top:6px;overflow:hidden}
+.volume-bar-fill{height:100%;background:linear-gradient(90deg,#6c63ff,#ff6b6b);border-radius:3px;transition:width .15s;width:0%}
+
+/* ===== 事件列表 ===== */
+.event-list{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.event-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px;background:#12153a;border-radius:8px;font-size:13px;
+  animation:fadeIn .3s ease
+}
+.event-item .time{color:#8888bb;font-size:11px}
+.event-item .play-recording{cursor:pointer;color:#6c63ff;font-size:18px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== 图表 ===== */
+.chart-wrapper{position:relative}
+#sleepChart{width:100%;height:200px;border-radius:8px;background:#12153a;display:block}
+
+/* ===== 白噪音 ===== */
+.sound-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.sound-btn{
+  padding:10px 6px;border:2px solid #2a2d5e;border-radius:12px;
+  background:transparent;color:#8888bb;cursor:pointer;text-align:center;
+  transition:all .3s;font-size:20px
+}
+.sound-btn.active{border-color:#6c63ff;background:rgba(108,99,255,0.15);color:#6c63ff}
+.sound-btn .label{display:block;font-size:10px;margin-top:2px}
+
+/* ===== 智能闹钟 ===== */
+.alarm-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.alarm-row input[type="time"]{
+  background:#12153a;border:1px solid #2a2d5e;border-radius:8px;
+  padding:8px 12px;color:#e0e0ff;font-size:16px
+}
+.alarm-status{font-size:13px;color:#ffd600}
+
+/* ===== 呼吸引导 ===== */
+.breath-circle-wrap{display:flex;justify-content:center;padding:10px 0}
+.breath-circle{
+  width:80px;height:80px;border-radius:50%;
+  background:radial-gradient(circle,rgba(108,99,255,0.3),rgba(108,99,255,0.05));
+  border:2px solid rgba(108,99,255,0.3);display:flex;align-items:center;justify-content:center;
+  flex-direction:column;font-size:12px;color:#8888bb;transition:all .1s
+}
+.breath-circle.active-inhale{animation:breathInhale 4s ease-in-out forwards}
+.breath-circle.active-hold{animation:breathHold 7s ease forwards}
+.breath-circle.active-exhale{animation:breathExhale 8s ease-in-out forwards}
+@keyframes breathInhale{
+  0%{transform:scale(0.6);opacity:.4}
+  100%{transform:scale(1.2);opacity:1;border-color:#6c63ff}
+}
+@keyframes breathHold{
+  0%,100%{transform:scale(1.2);opacity:1}
+  50%{transform:scale(1.25);opacity:.95}
+}
+@keyframes breathExhale{
+  0%{transform:scale(1.2);opacity:1}
+  100%{transform:scale(0.6);opacity:.4;border-color:rgba(108,99,255,0.1)}
+}
+.breath-phase{font-size:14px;font-weight:600;color:#6c63ff;text-align:center;margin-top:4px}
+
+/* ===== 翻身显示 ===== */
+.roll-display{display:flex;align-items:center;gap:16px;font-size:15px}
+.roll-number{font-size:28px;font-weight:700;color:#6c63ff}
+
+/* ===== 睡眠日记 ===== */
+.diary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.diary-item{
+  padding:8px;border:1px solid #2a2d5e;border-radius:8px;
+  text-align:center;font-size:12px;cursor:pointer;transition:all .3s;color:#8888bb
+}
+.diary-item.selected{border-color:#6c63ff;background:rgba(108,99,255,0.1);color:#6c63ff}
+
+/* ===== 总结 ===== */
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.summary-item{text-align:center;padding:12px;background:#12153a;border-radius:10px}
+.summary-item .num{font-size:22px;font-weight:700;color:#fff;display:block}
+.summary-item .lbl{font-size:11px;color:#8888bb;margin-top:2px}
+
+/* ===== 录音播放列表 ===== */
+.recording-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px;background:#12153a;border-radius:8px;margin-bottom:4px
+}
+.recording-item audio{height:32px;width:180px}
+
+/* ===== 响应式 ===== */
+@media(max-width:480px){
+  body{padding:8px;padding-bottom:100px}
+  .header h1{font-size:18px}
+  .timer{font-size:22px}
+  .volume-ring{width:130px;height:130px}
+  .volume-value{font-size:28px}
+  .btn{padding:12px 24px;font-size:14px}
+  .summary-grid{grid-template-columns:repeat(2,1fr)}
+  .sound-grid{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ===== Toast ===== */
+.toast{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  background:#2a2d5e;color:#e0e0ff;padding:12px 24px;border-radius:12px;
+  font-size:14px;box-shadow:0 4px 20px rgba(0,0,0,0.4);z-index:999;
+  animation:slideUp .3s ease;max-width:90vw;text-align:center
+}
+@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* ===== 页面可见性提示 ===== */
+.visibility-overlay{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(10,14,39,0.92);z-index:1000;
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px
+}
+.visibility-overlay.show{display:flex}
+.visibility-overlay .icon{font-size:48px}
+.visibility-overlay .text{font-size:16px;color:#8888bb;text-align:center;padding:0 30px}
+
+/* ===== 隐藏/显示 ===== */
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<!-- ===== 页面可见性遮罩 ===== -->
+<div class="visibility-overlay" id="visibilityOverlay">
+  <div class="icon">🌙</div>
+<div class="text">🔄 后台监测模式已开启<br><span style="font-size:13px;color:#6c63ff">监测仍在继续，息屏也不影响</span></div>
+<div style="font-size:12px;color:#555588;margin-top:8px;padding:0 20px">返回页面后数据会自动同步</div>
+</div>
+
+<div class="container" style="max-width:600px;margin:0 auto">
+
+<!-- ===== 头部 ===== -->
+<div class="header">
+  <h1>🌙 睡眠监测助手</h1>
+  <div>
+    <div class="timer" id="timerDisplay">00:00:00</div>
+    <div class="timer-label" id="monitorStatus">未开始监测</div>
+  </div>
+</div>
+
+<!-- ===== 状态栏 ===== -->
+<div class="card">
+  <div class="card-title">📊 实时状态</div>
+  <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div class="roll-display"><span>🔄 翻身次数：</span><span class="roll-number" id="rollCount">0</span></div>
+    <div><span id="wakeLockStatus" style="font-size:13px;color:#8888bb">💡 屏幕常亮：未启用</span></div>
+    <div><span id="soundEventCount" style="font-size:13px;color:#8888bb">🎤 事件：0</span></div>
+  </div>
+</div>
+
+<!-- ===== 音量显示 ===== -->
+<div class="card">
+  <div class="volume-container">
+    <svg class="volume-ring" viewBox="0 0 160 160">
+      <circle class="bg" cx="80" cy="80" r="68"/>
+      <circle class="progress" id="volumeProgress" cx="80" cy="80" r="68"
+        stroke-dasharray="427" stroke-dashoffset="427"
+        transform="rotate(-90,80,80)"/>
+    </svg>
+    <div class="volume-center">
+      <div class="volume-value" id="volumeValue">0</div>
+      <div class="volume-label">音量</div>
+    </div>
+  </div>
+  <div class="volume-bar-bg"><div class="volume-bar-fill" id="volumeBarFill"></div></div>
+  <div style="text-align:center;font-size:11px;color:#8888bb;margin-top:4px" id="thresholdDisplay">阈值计算中...</div>
+</div>
+
+<!-- ===== 控制按钮 ===== -->
+<div class="card">
+  <div class="btn-group">
+    <button class="btn btn-primary" id="btnStart">▶ 开始睡眠</button>
+    <button class="btn btn-danger" id="btnStop" disabled>⏹ 停止监测</button>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap">
+    <button class="btn btn-secondary btn-sm" id="btnSaveChart" disabled>💾 保存曲线</button>
+    <button class="btn btn-secondary btn-sm" id="btnExport" disabled>📥 导出JSON</button>
+  </div>
+</div>
+
+<!-- ===== 白噪音 ===== -->
+<div class="card" id="soundPlayerCard">
+  <div class="card-title">🎵 助眠音效</div>
+  <div class="sound-grid">
+    <div class="sound-btn" data-sound="whitenoise">🤍<span class="label">白噪音</span></div>
+    <div class="sound-btn" data-sound="rain">🌧<span class="label">雨声</span></div>
+    <div class="sound-btn" data-sound="ocean">🌊<span class="label">海浪</span></div>
+    <div class="sound-btn" data-sound="campfire">🔥<span class="label">篝火</span></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+    <input type="range" id="soundVolume" min="0" max="100" value="50" style="flex:1;accent-color:#6c63ff">
+    <span style="font-size:12px;color:#8888bb;min-width:32px" id="soundVolumeLabel">50%</span>
+  </div>
+</div>
+
+<!-- ===== 智能闹钟 ===== -->
+<div class="card">
+  <div class="card-title">⏰ 智能闹钟</div>
+  <div class="alarm-row">
+    <span style="font-size:13px;color:#8888bb">起床时间：</span>
+    <input type="time" id="alarmTime" value="07:00">
+    <button class="btn btn-secondary btn-sm" id="btnToggleAlarm">🔕 关闭闹钟</button>
+  </div>
+  <div class="alarm-status" id="alarmStatus">闹钟关闭</div>
+</div>
+
+<!-- ===== 呼吸引导 ===== -->
+<div class="card">
+  <div class="card-title" style="cursor:pointer" id="breathToggleTitle">🧘 呼吸引导 <span style="font-size:12px;color:#8888bb">(点击展开)</span></div>
+  <div id="breathPanel" class="hidden">
+    <div class="breath-circle-wrap">
+      <div class="breath-circle" id="breathCircle">
+        <span id="breathPhase">准备</span>
+      </div>
+    </div>
+    <div class="breath-phase" id="breathPhaseText">点击下方按钮开始</div>
+    <div style="text-align:center;margin-top:6px">
+      <button class="btn btn-secondary btn-sm" id="btnBreathStart">开始引导</button>
+      <button class="btn btn-secondary btn-sm" id="btnBreathStop" style="display:none">停止</button>
+    </div>
+    <div style="font-size:11px;color:#8888bb;text-align:center;margin-top:4px">4秒吸气 → 7秒屏息 → 8秒呼气</div>
+  </div>
+</div>
+
+<!-- ===== 事件列表 ===== -->
+<div class="card">
+  <div class="card-title">📋 事件记录 <span id="eventCountBadge" style="font-size:12px;background:#6c63ff;color:#fff;border-radius:10px;padding:1px 8px">0</span></div>
+  <div class="event-list" id="eventList">
+    <div style="text-align:center;color:#555588;font-size:13px;padding:20px 0">点击「开始睡眠」开始监测</div>
+  </div>
+</div>
+
+<!-- ===== 鼾声录音回放 ===== -->
+<div class="card hidden" id="recordingsCard">
+  <div class="card-title">🎙 打鼾录音回放</div>
+  <div id="recordingsList"></div>
+</div>
+
+<!-- ===== 睡眠曲线 ===== -->
+<div class="card">
+  <div class="card-title">📈 睡眠曲线（每30秒平均音量）</div>
+  <div class="chart-wrapper">
+    <canvas id="sleepChart"></canvas>
+  </div>
+</div>
+
+<!-- ===== 睡眠日记 ===== -->
+<div class="card">
+  <div class="card-title">📝 睡前日记</div>
+  <div style="font-size:12px;color:#8888bb;margin-bottom:8px">今天你经历了哪些？</div>
+  <div class="diary-grid" id="diaryGrid">
+    <div class="diary-item" data-key="caffeine">☕ 喝了咖啡</div>
+    <div class="diary-item" data-key="exercise">🏃 运动了</div>
+    <div class="diary-item" data-key="stress">😰 压力大</div>
+    <div class="diary-item" data-key="alcohol">🍷 喝了酒</div>
+    <div class="diary-item" data-key="meal">🍔 吃太饱</div>
+    <div class="diary-item" data-key="nap">😴 午睡过</div>
+  </div>
+  <textarea id="diaryNote" placeholder="其他备注..." style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #2a2d5e;background:#12153a;color:#e0e0ff;font-size:13px;resize:none;height:50px;font-family:inherit"></textarea>
+</div>
+
+<!-- ===== 历史记录 ===== -->
+<div class="card">
+  <div class="card-title">📊 历史记录（近7天）</div>
+  <div id="historyContent" style="font-size:13px;color:#8888bb">暂无历史数据</div>
+</div>
+
+</div>
+
+<script>
+/* ===== 状态管理 ===== */
+const STATE = {
+  isMonitoring: false,
+  startTime: null,
+  timerInterval: null,
+  /* 音量 */
+  audioContext: null,
+  analyser: null,
+  micStream: null,
+  volumeHistory: [],        // [{minute, avgVolume}]
+  rawVolumes: [],           // 最近30s的原始音量值
+  currentAvgVol: 0,
+  /* 阈值 */
+  quietSamples: [],
+  threshold: 0.08,
+  isCalibrating: true,
+  calibrationCount: 0,
+  /* 声音事件 */
+  noiseStartTime: null,
+  noiseDuration: 0,
+  isInNoise: false,
+  events: [],
+  /* 翻身 */
+  rollCount: 0,
+  rollTimestamps: [],
+  lastAccel: null,
+  accelSupported: false,
+  /* 图表 */
+  chartData: [],
+  rollMarkers: [],
+  /* 录音 */
+  mediaRecorder: null,
+  recordedChunks: [],
+  recordings: [],
+  isRecording: false,
+  /* 白噪音 */
+  noiseNode: null,
+  noiseGain: null,
+  noiseSource: null,
+  currentSound: null,
+  /* 闹钟 */
+  alarmEnabled: false,
+  alarmTriggered: false,
+  /* 呼吸 */
+  breathInterval: null,
+  /* 屏幕常亮 */
+  wakeLock: null,
+  /* Canvas */
+  chartCanvas: null,
+  chartCtx: null,
+  /* 日记 */
+  diarySelections: new Set(),
+  /* 睡眠评分 */
+  sleepScore: 0
+};
+
+/* ===== DOM引用 ===== */
+const $ = id => document.getElementById(id);
+const btnStart = $('btnStart');
+const btnStop = $('btnStop');
+const timerDisplay = $('timerDisplay');
+const monitorStatus = $('monitorStatus');
+const volumeValue = $('volumeValue');
+const volumeProgress = $('volumeProgress');
+const volumeBarFill = $('volumeBarFill');
+const thresholdDisplay = $('thresholdDisplay');
+const rollCount = $('rollCount');
+const wakeLockStatus = $('wakeLockStatus');
+const soundEventCount = $('soundEventCount');
+const eventList = $('eventList');
+const eventCountBadge = $('eventCountBadge');
+const sleepChart = $('sleepChart');
+const btnSaveChart = $('btnSaveChart');
+const btnExport = $('btnExport');
+const visibilityOverlay = $('visibilityOverlay');
+const alarmTime = $('alarmTime');
+const btnToggleAlarm = $('btnToggleAlarm');
+const alarmStatus = $('alarmStatus');
+const soundVolume = $('soundVolume');
+const soundVolumeLabel = $('soundVolumeLabel');
+const recordingsCard = $('recordingsCard');
+const recordingsList = $('recordingsList');
+const breathCircle = $('breathCircle');
+const breathPhase = $('breathPhase');
+const breathPhaseText = $('breathPhaseText');
+const btnBreathStart = $('btnBreathStart');
+const btnBreathStop = $('btnBreathStop');
+const breathToggleTitle = $('breathToggleTitle');
+const breathPanel = $('breathPanel');
+const diaryNote = $('diaryNote');
+const historyContent = $('historyContent');
+
+/* ===== 工具函数 ===== */
+function formatTime(ts){
+  const d=new Date(ts);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+}
+function formatTimeShort(ts){
+  const d=new Date(ts);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function msToTime(ms){
+  const s=Math.floor(ms/1000);
+  return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+function toast(msg){
+  const t=document.createElement('div');
+  t.className='toast';t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),3000);
+}
+function now(){return Date.now()}
+
+/* ===== 初始化 Canvas ===== */
+function initCanvas(){
+  const rect=sleepChart.parentElement.getBoundingClientRect();
+  sleepChart.width=sleepChart.clientWidth*2||600;
+  sleepChart.height=200*2||400;
+  sleepChart.style.width='100%';
+  sleepChart.style.height='200px';
+  STATE.chartCanvas=sleepChart;
+  STATE.chartCtx=sleepChart.getContext('2d');
+}
+window.addEventListener('resize',initCanvas);
+
+/* ===== 计时器 ===== */
+function startTimer(){
+  STATE.startTime=now();
+  STATE.timerInterval=setInterval(()=>{
+    const elapsed=now()-STATE.startTime;
+    timerDisplay.textContent=msToTime(elapsed);
+  },200);
+}
+function stopTimer(){
+  clearInterval(STATE.timerInterval);
+}
+
+/* ===== 唤醒锁 ===== */
+async function requestWakeLock(){
+  try{
+    if('wakeLock'in navigator){
+      STATE.wakeLock=await navigator.wakeLock.request('screen');
+      wakeLockStatus.textContent='💡 屏幕将保持常亮';
+      STATE.wakeLock.addEventListener('release',()=>{
+        if(STATE.isMonitoring) wakeLockStatus.textContent='💡 屏幕常亮已释放（重新请求中...）';
+      });
+    }
+  }catch(e){
+    wakeLockStatus.textContent='💡 屏幕常亮：不可用';
+    console.warn('Wake Lock:',e.message);
+  }
+
+
+
+/* ===== 后台保活（静音音频） ===== */
+/* 原理：播放一段人耳听不到的静音音频，让手机浏览器保持页面活跃
+   这样即使息屏/切后台，麦克风监测也不会被系统杀死 */
+let keepAliveCtx = null;
+let keepAliveSource = null;
+
+function startBackgroundKeepAlive(){
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)({sampleRate:8000});
+    keepAliveCtx = ctx;
+    // 生成1秒静音（buffer默认全是0，就是静音）
+    const buffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    
+    function play(){
+      if(!keepAliveCtx) return;
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.loop = true;
+      src.connect(ctx.destination);
+      src.start();
+      keepAliveSource = src;
+    }
+    
+    if(ctx.state === 'suspended'){
+      ctx.resume().then(play);
+    }else{
+      play();
+    }
+    
+    wakeLockStatus.textContent = '💡 屏幕常亮 + 🌙 后台监测中';
+    console.log('🌙 后台保活已启动，息屏/切后台不会中断监测');
+  }catch(e){
+    console.warn('后台保活启动失败:', e.message);
+    wakeLockStatus.textContent = '💡 后台保活不可用，请保持屏幕常亮';
+  }
+}
+
+function stopBackgroundKeepAlive(){
+  if(keepAliveSource){
+    try{ keepAliveSource.stop(); }catch(e){}
+    try{ keepAliveSource.disconnect(); }catch(e){}
+    keepAliveSource = null;
+  }
+  if(keepAliveCtx){
+    keepAliveCtx.close().catch(()=>{});
+    keepAliveCtx = null;
+  }
+}
+
+/* ===== 唤醒锁释放 ===== */
+async function releaseWakeLock(){
+  if(STATE.wakeLock){try{await STATE.wakeLock.release()}catch(e){}STATE.wakeLock=null}
+  wakeLockStatus.textContent='💡 屏幕常亮：未启用';
+}
+  if(keepAliveCtx){
+    keepAliveCtx.close().catch(()=>{});
+    keepAliveCtx = null;
+  }
+}
+
+/* ===== 页面可见性 ===== */
+/* 后台保活开启后，切后台不会中断监测，只显示一个友好的提示 */
+document.addEventListener('visibilitychange',()=>{
+  if(STATE.isMonitoring && document.hidden){
+    visibilityOverlay.classList.add('show');
+  }else{
+    visibilityOverlay.classList.remove('show');
+    if(STATE.isMonitoring && keepAliveCtx){
+      const n = STATE.events.length;
+      toast('🌙 已回到前台 · 监测一直在线' + (n>0?' · 已记录'+n+'个事件':''));
+    }
+  }
+});
+
+/* ===== 音量监测 ===== */
+const CIRCUMFERENCE=427; // 2*PI*68
+
+function updateVolumeDisplay(vol){
+  const pct=Math.min(vol*100,100);
+  volumeValue.textContent=pct.toFixed(0);
+  const offset=CIRCUMFERENCE-(pct/100)*CIRCUMFERENCE;
+  volumeProgress.setAttribute('stroke-dashoffset',offset);
+  volumeBarFill.style.width=pct+'%';
+}
+
+function processVolume(){
+  if(!STATE.isMonitoring||!STATE.analyser) return;
+  const data=new Uint8Array(STATE.analyser.frequencyBinCount);
+  STATE.analyser.getByteTimeDomainData(data);
+  let sum=0;
+  for(let i=0;i<data.length;i++){
+    const v=(data[i]-128)/128;
+    sum+=v*v;
+  }
+  const rms=Math.sqrt(sum/data.length);
+
+  // 阈值校准（前30个静音样本）
+  if(STATE.isCalibrating && rms<0.05){
+    STATE.quietSamples.push(rms);
+    STATE.calibrationCount++;
+    if(STATE.calibrationCount>=30){
+      const avg=STATE.quietSamples.reduce((a,b)=>a+b,0)/STATE.quietSamples.length;
+      STATE.threshold=Math.max(avg*2,0.04);
+      STATE.isCalibrating=false;
+      thresholdDisplay.textContent=`阈值：${(STATE.threshold*100).toFixed(1)}% | 安静音量：${(avg*100).toFixed(1)}%`;
+    }else{
+      thresholdDisplay.textContent=`校准中... ${STATE.calibrationCount}/30`;
+    }
+  }
+
+  // 实时音量累计（用于30s平均）
+  STATE.rawVolumes.push(rms);
+  updateVolumeDisplay(rms);
+
+  // 声音事件检测
+  if(!STATE.isCalibrating){
+    detectSoundEvent(rms);
+  }
+
+  requestAnimationFrame(processVolume);
+}
+
+/* ===== 声音事件检测 ===== */
+function detectSoundEvent(rms){
+  const nowTime=now();
+  if(rms>STATE.threshold){
+    if(!STATE.isInNoise){
+      STATE.isInNoise=true;
+      STATE.noiseStartTime=nowTime;
+      STATE.noiseDuration=0;
+    }else{
+      STATE.noiseDuration=nowTime-STATE.noiseStartTime;
+    }
+  }else{
+    if(STATE.isInNoise){
+      // 噪音结束，判断类型
+      const dur=STATE.noiseDuration;
+      let type,icon;
+      if(dur>3000){
+        type='snore';icon='😴打呼';
+        // 触发录音
+        startSnoreRecording();
+      }else if(dur>2000){
+        type='other';icon='🔊其他声音';
+      }else{
+        type='talk';icon='💬说梦话';
+      }
+      const evt={time:nowTime,type,icon,duration:dur,recordings:null};
+      STATE.events.push(evt);
+      updateEventList();
+      STATE.isInNoise=false;
+      STATE.noiseDuration=0;
+    }
+  }
+}
+
+/* ===== 鼾声录音 ===== */
+function startSnoreRecording(){
+  if(STATE.isRecording||!STATE.micStream) return;
+  STATE.isRecording=true;
+  STATE.recordedChunks=[];
+  try{
+    const recorder=new MediaRecorder(STATE.micStream,{mimeType:'audio/webm;codecs=opus'});
+    STATE.mediaRecorder=recorder;
+    recorder.ondataavailable=e=>{if(e.data.size>0)STATE.recordedChunks.push(e.data)};
+    recorder.onstop=()=>{
+      STATE.isRecording=false;
+      if(STATE.recordedChunks.length>0){
+        const blob=new Blob(STATE.recordedChunks,{type:'audio/webm'});
+        const url=URL.createObjectURL(blob);
+        const evt=STATE.events[STATE.events.length-1];
+        if(evt && evt.type==='snore'){
+          evt.recording=url;
+          STATE.recordings.push({time:evt.time,url,blob});
+          updateRecordingsList();
+          recordingsCard.classList.remove('hidden');
+        }
+      }
+    };
+    recorder.start();
+    setTimeout(()=>{
+      if(recorder.state==='recording') recorder.stop();
+    },6000);
+  }catch(e){
+    console.warn('录音失败:',e.message);
+    STATE.isRecording=false;
+  }
+}
+
+function updateRecordingsList(){
+  recordingsList.innerHTML=STATE.recordings.map((r,i)=>`
+    <div class="recording-item">
+      <span style="font-size:12px;color:#8888bb">${formatTime(r.time)}</span>
+      <audio controls src="${r.url}"></audio>
+    </div>
+  `).join('');
+}
+/* ===== 事件列表更新 ===== */
+function updateEventList(){
+  eventList.innerHTML=STATE.events.length===0
+    ?'<div style="text-align:center;color:#555588;font-size:13px;padding:20px 0">暂无事件记录</div>'
+    :STATE.events.slice().reverse().map(e=>`
+      <div class="event-item">
+        <span>${e.icon}</span>
+        <span style="flex:1;margin:0 8px;font-size:13px">
+          ${e.type==='snore'?'😴打呼':e.type==='talk'?'💬说梦话':'🔊其他声音'}
+          ${e.duration?`<span style="font-size:11px;color:#8888bb">(${(e.duration/1000).toFixed(1)}s)</span>`:''}
+        </span>
+        <span class="time">${formatTime(e.time)}</span>
+        ${e.recording?`<span class="play-recording" onclick="document.querySelector('#recordingsCard audio:last-child')?.play()">▶️</span>`:''}
+      </div>
+    `).join('');
+  eventCountBadge.textContent=STATE.events.length;
+  soundEventCount.textContent=`🎤 事件：${STATE.events.length}`;
+}
+
+/* ===== 翻身检测 ===== */
+function initRollDetection(){
+  if(typeof DeviceMotionEvent==='undefined' || !DeviceMotionEvent){
+    document.querySelector('.roll-display').innerHTML='<span style="font-size:13px;color:#8888bb">❌ 当前设备不支持翻身检测</span>';
+    STATE.accelSupported=false;
+    return;
+  }
+  STATE.accelSupported=true;
+  window.addEventListener('devicemotion',handleMotion);
+}
+
+function handleMotion(e){
+  if(!STATE.isMonitoring) return;
+  const acc=e.accelerationIncludingGravity;
+  if(!acc||acc.x===null) return;
+  const total=Math.sqrt(acc.x*acc.x+acc.y*acc.y+acc.z*acc.z);
+  if(STATE.lastAccel!==null){
+    const diff=Math.abs(total-STATE.lastAccel);
+    if(diff>1.5){
+      STATE.rollCount++;
+      STATE.rollTimestamps.push(now());
+      rollCount.textContent=STATE.rollCount;
+      // 在图表上标记
+      STATE.rollMarkers.push({time:now(),minute:(now()-STATE.startTime)/60000});
+    }
+  }
+  STATE.lastAccel=total;
+}
+
+/* ===== Canvas 睡眠曲线 ===== */
+function updateChart(){
+  const ctx=STATE.chartCtx;
+  const w=sleepChart.width,h=sleepChart.height;
+  ctx.clearRect(0,0,w,h);
+  if(STATE.chartData.length<2) return;
+
+  const pad={top:15,bottom:25,left:40,right:15};
+  const cw=w-pad.left-pad.right,ch=h-pad.top-pad.bottom;
+
+  // 计算范围
+  const vols=STATE.chartData.map(d=>d.avgVolume);
+  const maxVol=Math.max(...vols,0.01);
+  const totalMinutes=STATE.chartData[STATE.chartData.length-1].minute||1;
+
+  // 网格
+  ctx.strokeStyle='#1a1d3e';
+  ctx.lineWidth=1;
+  for(let i=0;i<5;i++){
+    const y=pad.top+(ch/5)*i;
+    ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(w-pad.right,y);ctx.stroke();
+  }
+
+  // 纵轴标签
+  ctx.fillStyle='#555588';ctx.font='10px sans-serif';ctx.textAlign='right';
+  for(let i=0;i<5;i++){
+    const y=pad.top+(ch/5)*i;
+    ctx.fillText((maxVol*(1-i/4)*100).toFixed(0),pad.left-5,y+3);
+  }
+
+  // 横轴标签
+  ctx.textAlign='center';
+  const xStep=cw/5;
+  for(let i=0;i<=5;i++){
+    const x=pad.left+xStep*i;
+    ctx.fillText((totalMinutes*i/5).toFixed(0)+'min',x,h-5);
+  }
+
+  // 音量曲线
+  ctx.beginPath();
+  ctx.strokeStyle='#6c63ff';
+  ctx.lineWidth=2;
+  ctx.lineJoin='round';
+  STATE.chartData.forEach((d,i)=>{
+    const x=pad.left+(d.minute/totalMinutes)*cw;
+    const y=pad.top+ch-(d.avgVolume/maxVol)*ch;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // 渐变填充
+  ctx.lineTo(pad.left+(STATE.chartData[STATE.chartData.length-1].minute/totalMinutes)*cw,pad.top+ch);
+  ctx.lineTo(pad.left,pad.top+ch);
+  ctx.closePath();
+  const grad=ctx.createLinearGradient(0,pad.top,0,pad.top+ch);
+  grad.addColorStop(0,'rgba(108,99,255,0.2)');
+  grad.addColorStop(1,'rgba(108,99,255,0.02)');
+  ctx.fillStyle=grad;
+  ctx.fill();
+
+  // 翻身标记（小红点）
+  STATE.rollMarkers.forEach(m=>{
+    const x=pad.left+(m.minute/totalMinutes)*cw;
+    if(x<pad.left||x>w-pad.right) return;
+    ctx.beginPath();
+    ctx.arc(x,pad.top+ch+8,4,0,Math.PI*2);
+    ctx.fillStyle='#ff4757';
+    ctx.fill();
+    // 竖线
+    ctx.beginPath();
+    ctx.moveTo(x,pad.top+ch+2);
+    ctx.lineTo(x,pad.top+ch+14);
+    ctx.strokeStyle='rgba(255,71,87,0.4)';
+    ctx.lineWidth=1;
+    ctx.stroke();
+  });
+
+  // 标题
+  ctx.fillStyle='#8888bb';
+  ctx.font='10px sans-serif';
+  ctx.textAlign='left';
+  ctx.fillText(`⏱ ${STATE.chartData.length*30}s | 翻身${STATE.rollCount}次`,pad.left,10);
+}
+
+/* ===== 白噪音生成 ===== */
+let noiseAudioCtx=null;
+
+function getNoiseCtx(){
+  if(!noiseAudioCtx) noiseAudioCtx=new (window.AudioContext||webkitAudioContext)();
+  return noiseAudioCtx;
+}
+
+function createNoiseBuffer(ctx,type){
+  const sr=ctx.sampleRate;
+  const len=sr*4; // 4秒循环
+  const buf=ctx.createBuffer(1,len,sr);
+  const data=buf.getChannelData(0);
+
+  for(let i=0;i<len;i++){
+    let val;
+    switch(type){
+      case 'whitenoise': val=Math.random()*2-1;break;
+      case 'rain':
+        val=Math.random()*2-1;
+        // 简单滤波模拟雨声
+        break;
+      case 'ocean':
+        val=Math.sin(i*0.05)*Math.random()*0.8+(Math.random()*2-1)*0.2;
+        break;
+      case 'campfire':
+        val=Math.random()*2-1;
+        const env=Math.abs(Math.sin(i*0.01))*0.6+0.4;
+        val*=env;
+        break;
+      default: val=Math.random()*2-1;
+    }
+    data[i]=val*0.3;
+  }
+  return buf;
+}
+
+function playSound(type){
+  stopSound();
+  const ctx=getNoiseCtx();
+  if(ctx.state==='suspended') ctx.resume();
+
+  const buf=createNoiseBuffer(ctx,type);
+  STATE.noiseSource=ctx.createBufferSource();
+  STATE.noiseSource.buffer=buf;
+  STATE.noiseSource.loop=true;
+
+  // 不同类型加不同滤波器
+  const filter=ctx.createBiquadFilter();
+  filter.type='lowpass';
+  switch(type){
+    case 'whitenoise': filter.frequency.value=8000;break;
+    case 'rain': filter.frequency.value=2000;filter.Q.value=0.5;break;
+    case 'ocean': filter.frequency.value=1000;filter.Q.value=1;break;
+    case 'campfire': filter.frequency.value=3000;filter.Q.value=0.3;break;
+  }
+
+  STATE.noiseGain=ctx.createGain();
+  STATE.noiseGain.gain.value=soundVolume.value/100*0.3;
+
+  STATE.noiseSource.connect(filter);
+  filter.connect(STATE.noiseGain);
+  STATE.noiseGain.connect(ctx.destination);
+  STATE.noiseSource.start();
+  STATE.currentSound=type;
+
+  // UI更新
+  document.querySelectorAll('.sound-btn').forEach(b=>{
+    b.classList.toggle('active',b.dataset.sound===type);
+  });
+}
+
+function stopSound(){
+  if(STATE.noiseSource){
+    try{STATE.noiseSource.stop()}catch(e){}
+    STATE.noiseSource.disconnect();
+    STATE.noiseSource=null;
+  }
+  if(STATE.noiseGain){
+    STATE.noiseGain.disconnect();
+    STATE.noiseGain=null;
+  }
+  STATE.currentSound=null;
+  document.querySelectorAll('.sound-btn').forEach(b=>b.classList.remove('active'));
+}
+
+soundVolume.addEventListener('input',()=>{
+  soundVolumeLabel.textContent=soundVolume.value+'%';
+  if(STATE.noiseGain){
+    STATE.noiseGain.gain.value=soundVolume.value/100*0.3;
+  }
+});
+
+document.querySelectorAll('.sound-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const type=btn.dataset.sound;
+    if(STATE.currentSound===type){stopSound();return}
+    playSound(type);
+  });
+});
+
+/* ===== 智能闹钟 ===== */
+let alarmCheckInterval=null;
+
+btnToggleAlarm.addEventListener('click',()=>{
+  STATE.alarmEnabled=!STATE.alarmEnabled;
+  btnToggleAlarm.textContent=STATE.alarmEnabled?'🔔 闹钟已开':'🔕 关闭闹钟';
+  alarmStatus.textContent=STATE.alarmEnabled?`⏰ 将在 ${alarmTime.value} 附近智能唤醒`:'闹钟关闭';
+  STATE.alarmTriggered=false;
+  if(STATE.alarmEnabled && STATE.isMonitoring){
+    startAlarmCheck();
+  }else{
+    stopAlarmCheck();
+  }
+});
+
+function startAlarmCheck(){
+  stopAlarmCheck();
+  alarmCheckInterval=setInterval(checkAlarm,10000); // 每10秒检查
+}
+
+function stopAlarmCheck(){
+  if(alarmCheckInterval){clearInterval(alarmCheckInterval);alarmCheckInterval=null}
+}
+
+function checkAlarm(){
+  if(!STATE.alarmEnabled||STATE.alarmTriggered||!STATE.isMonitoring) return;
+  const nowTime=new Date();
+  const [h,m]=alarmTime.value.split(':').map(Number);
+  const alarmDate=new Date(nowTime);
+  alarmDate.setHours(h,m,0,0);
+  // 如果在过去，设到明天
+  if(alarmDate<nowTime) alarmDate.setDate(alarmDate.getDate()+1);
+
+  const diffMs=alarmDate-nowTime;
+  // 在闹钟前30分钟内
+  if(diffMs>0 && diffMs<30*60*1000){
+    // 检查翻身频率：如果翻身后超过3分钟没再翻身 → 浅睡期
+    const recentRolls=STATE.rollTimestamps.filter(t=>nowTime-t<5*60*1000);
+    if(recentRolls.length>0){
+      const lastRoll=Math.max(...recentRolls);
+      if(nowTime-lastRoll>3*60*1000){
+        // 超过3分钟没翻身 → 浅睡，触发闹钟
+        triggerAlarm();
+      }
+    }
+  }
+}
+
+function triggerAlarm(){
+  STATE.alarmTriggered=true;
+  alarmStatus.textContent='⏰ 智能闹钟已触发！';
+  toast('⏰ 检测到浅睡期，该起床啦！');
+  // 播放闹铃声（用Web Audio）
+  try{
+    const ctx=getNoiseCtx();
+    if(ctx.state==='suspended') ctx.resume();
+    const osc=ctx.createOscillator();
+    const gain=ctx.createGain();
+    osc.type='sine';
+    osc.frequency.value=800;
+    gain.gain.value=0.2;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+3);
+    osc.stop(ctx.currentTime+3);
+  }catch(e){}
+}
+/* ===== 呼吸引导 ===== */
+let breathStage=0; // 0:inhale,1:hold,2:exhale
+let breathRunning=false;
+
+btnBreathStart.addEventListener('click',()=>{
+  breathRunning=true;
+  btnBreathStart.style.display='none';
+  btnBreathStop.style.display='inline-block';
+  startBreathCycle();
+});
+
+btnBreathStop.addEventListener('click',()=>{
+  breathRunning=false;
+  if(STATE.breathInterval){clearInterval(STATE.breathInterval);STATE.breathInterval=null}
+  breathCircle.className='breath-circle';
+  breathPhase.textContent='准备';
+  breathPhaseText.textContent='已停止';
+  btnBreathStart.style.display='inline-block';
+  btnBreathStop.style.display='none';
+});
+
+function startBreathCycle(){
+  breathStage=0;
+  doBreathStep();
+}
+
+function doBreathStep(){
+  if(!breathRunning) return;
+  const phases=[
+    {name:'吸气',duration:4000,cls:'active-inhale'},
+    {name:'屏息',duration:7000,cls:'active-hold'},
+    {name:'呼气',duration:8000,cls:'active-exhale'}
+  ];
+  const p=phases[breathStage];
+  breathCircle.className='breath-circle '+p.cls;
+  breathPhase.textContent=p.name;
+  breathPhaseText.textContent=p.name+'中...';
+
+  STATE.breathInterval=setTimeout(()=>{
+    breathStage=(breathStage+1)%3;
+    doBreathStep();
+  },p.duration);
+}
+
+breathToggleTitle.addEventListener('click',()=>{
+  const isHidden=breathPanel.classList.contains('hidden');
+  breathPanel.classList.toggle('hidden');
+  breathToggleTitle.innerHTML=isHidden?'🧘 呼吸引导 <span style="font-size:12px;color:#8888bb">(点击收起)</span>':'🧘 呼吸引导 <span style="font-size:12px;color:#8888bb">(点击展开)</span>';
+});
+
+/* ===== 睡眠日记 ===== */
+document.querySelectorAll('.diary-item').forEach(item=>{
+  item.addEventListener('click',()=>{
+    const key=item.dataset.key;
+    if(STATE.diarySelections.has(key)){
+      STATE.diarySelections.delete(key);
+      item.classList.remove('selected');
+    }else{
+      STATE.diarySelections.add(key);
+      item.classList.add('selected');
+    }
+  });
+});
+
+/* ===== 睡眠评分 ===== */
+function calculateSleepScore(){
+  const elapsed=(now()-STATE.startTime)/3600000; // 小时
+  if(elapsed<0.1) return {score:0,label:'数据不足'};
+
+  let score=60;
+
+  // 翻身评分（满分20）
+  const rollsPerHour=STATE.rollCount/Math.max(elapsed,0.1);
+  if(rollsPerHour<5) score+=20;
+  else if(rollsPerHour<10) score+=15;
+  else if(rollsPerHour<15) score+=8;
+  else score+=0;
+
+  // 打呼评分（满分10）
+  const snoreCount=STATE.events.filter(e=>e.type==='snore').length;
+  if(snoreCount===0) score+=10;
+  else if(snoreCount<5) score+=7;
+  else if(snoreCount<15) score+=4;
+  else score+=0;
+
+  // 说梦话评分（满分5）
+  const talkCount=STATE.events.filter(e=>e.type==='talk').length;
+  if(talkCount===0) score+=5;
+  else if(talkCount<3) score+=3;
+  else score+=1;
+
+  // 时长评分（满分5）
+  if(elapsed>=7) score+=5;
+  else if(elapsed>=5) score+=3;
+  else if(elapsed>=3) score+=1;
+
+  const finalScore=Math.min(100,Math.max(0,score));
+  let label='';
+  if(finalScore>=85) label='🌟 优质睡眠';
+  else if(finalScore>=70) label='👍 睡眠良好';
+  else if(finalScore>=50) label='🤔 睡眠一般';
+  else label='😴 需要改善';
+
+  return {score:Math.round(finalScore),label};
+}
+
+/* ===== 停止监测总结 ===== */
+function showSummary(){
+  const elapsed=(now()-STATE.startTime)/3600000;
+  const snoreCount=STATE.events.filter(e=>e.type==='snore').length;
+  const talkCount=STATE.events.filter(e=>e.type==='talk').length;
+  const scoring=calculateSleepScore();
+
+  let rollMsg='';
+  if(STATE.accelSupported){
+    const rollsPerHour=STATE.rollCount/Math.max(elapsed,0.1);
+    if(rollsPerHour<5) rollMsg='✅ 深度睡眠较好';
+    else if(rollsPerHour<10) rollMsg='📊 翻身频率正常';
+    else rollMsg='⚠️ 睡眠较浅，建议放松';
+  }else{
+    rollMsg='当前设备不支持翻身检测';
+  }
+
+  const summary=`
+📊 === 睡眠总结 ===
+
+⏱ 监测时长：${msToTime(now()-STATE.startTime)}
+😴 打呼次数：${snoreCount} 次
+💬 说梦话：${talkCount} 次
+🔄 翻身次数：${STATE.rollCount} 次
+${rollMsg}
+
+🏆 综合评分：${scoring.score} 分 - ${scoring.label}
+  `;
+
+  alert(summary);
+
+  // 显示总结卡片
+  showSummaryCards(scoring,elapsed);
+}
+
+function showSummaryCards(scoring,elapsed){
+  const snoreCount=STATE.events.filter(e=>e.type==='snore').length;
+  const talkCount=STATE.events.filter(e=>e.type==='talk').length;
+
+  // 在事件列表上方插入总结卡片
+  const summaryHtml=`
+    <div class="card" style="margin-bottom:14px;background:linear-gradient(135deg,rgba(108,99,255,0.1),rgba(255,107,107,0.05))">
+      <div style="text-align:center;margin-bottom:8px">
+        <span style="font-size:20px;font-weight:700">${scoring.label}</span>
+        <span style="font-size:14px;color:#8888bb;margin-left:8px">${scoring.score}分</span>
+      </div>
+      <div class="summary-grid">
+        <div class="summary-item"><span class="num">${snoreCount}</span><span class="lbl">打呼</span></div>
+        <div class="summary-item"><span class="num">${talkCount}</span><span class="lbl">说梦话</span></div>
+        <div class="summary-item"><span class="num">${STATE.rollCount}</span><span class="lbl">翻身</span></div>
+        <div class="summary-item"><span class="num">${msToTime(now()-STATE.startTime)}</span><span class="lbl">时长</span></div>
+      </div>
+    </div>
+  `;
+  eventList.insertAdjacentHTML('afterbegin',summaryHtml);
+}
+
+/* ===== 保存曲线为图片 ===== */
+btnSaveChart.addEventListener('click',()=>{
+  const link=document.createElement('a');
+  link.download=`睡眠曲线_${new Date().toISOString().slice(0,10)}.png`;
+  link.href=sleepChart.toDataURL('image/png');
+  link.click();
+  toast('✅ 曲线已保存为PNG');
+});
+
+/* ===== 导出JSON ===== */
+btnExport.addEventListener('click',()=>{
+  const elapsed=now()-STATE.startTime;
+  const data={
+    exportTime:new Date().toISOString(),
+    monitorStart:new Date(STATE.startTime).toISOString(),
+    durationMs:elapsed,
+    durationFormatted:msToTime(elapsed),
+    rollCount:STATE.rollCount,
+    rollTimestamps:STATE.rollTimestamps.map(t=>new Date(t).toISOString()),
+    events:STATE.events.map(e=>({
+      time:new Date(e.time).toISOString(),
+      type:e.type,
+      icon:e.icon,
+      duration:e.duration||0,
+      hasRecording:!!e.recording
+    })),
+    volumeData:STATE.chartData.map(d=>({
+      minute:d.minute.toFixed(1),
+      avgVolume:(d.avgVolume*100).toFixed(1)
+    })),
+    score:calculateSleepScore(),
+    diary:{
+      selections:[...STATE.diarySelections],
+      note:diaryNote.value
+    }
+  };
+  const json=JSON.stringify(data,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const link=document.createElement('a');
+  link.download=`睡眠报告_${new Date().toISOString().slice(0,10)}.json`;
+  link.href=URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
+  toast('✅ JSON报告已导出');
+});
+
+/* ===== 历史记录 ===== */
+function saveHistory(){
+  const elapsed=now()-STATE.startTime;
+  const scoring=calculateSleepScore();
+  const record={
+    date:new Date().toISOString().slice(0,10),
+    duration:elapsed,
+    durationFormatted:msToTime(elapsed),
+    rollCount:STATE.rollCount,
+    snoreCount:STATE.events.filter(e=>e.type==='snore').length,
+    talkCount:STATE.events.filter(e=>e.type==='talk').length,
+    score:scoring.score,
+    label:scoring.label,
+    diary:[...STATE.diarySelections],
+    note:diaryNote.value
+  };
+
+  let history=[];
+  try{
+    const stored=localStorage.getItem('sleepHistory');
+    if(stored) history=JSON.parse(stored);
+  }catch(e){}
+  history.unshift(record);
+  if(history.length>7) history=history.slice(0,7);
+  localStorage.setItem('sleepHistory',JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory(){
+  let history=[];
+  try{
+    const stored=localStorage.getItem('sleepHistory');
+    if(stored) history=JSON.parse(stored);
+  }catch(e){}
+  if(history.length===0){
+    historyContent.innerHTML='<span style="font-size:13px;color:#8888bb">暂无历史数据</span>';
+    return;
+  }
+  historyContent.innerHTML=history.map(r=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1a1d3e;font-size:13px">
+      <span>${r.date}</span>
+      <span>${r.durationFormatted}</span>
+      <span style="color:${r.score>=80?'#00c853':r.score>=60?'#ffd600':'#ff6b6b'}">${r.score}分 ${r.label}</span>
+    </div>
+  `).join('');
+}
+
+// 渲染历史
+renderHistory();
+/* ===== 30秒平均音量采集 ===== */
+let avgInterval=null;
+
+function startAvgCollection(){
+  avgInterval=setInterval(()=>{
+    if(!STATE.isMonitoring||STATE.rawVolumes.length===0) return;
+    const avg=STATE.rawVolumes.reduce((a,b)=>a+b,0)/STATE.rawVolumes.length;
+    const elapsed=(now()-STATE.startTime)/60000;
+    STATE.chartData.push({minute:elapsed,avgVolume:avg});
+    STATE.currentAvgVol=avg;
+    STATE.rawVolumes=[];
+    // 更新图表
+    updateChart();
+  },30000);
+}
+
+function stopAvgCollection(){
+  if(avgInterval){clearInterval(avgInterval);avgInterval=null}
+}
+
+/* ===== 开始监测 ===== */
+btnStart.addEventListener('click',async()=>{
+  // 1. 请求麦克风权限
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    STATE.micStream=stream;
+
+    // 2. 初始化音频上下文
+    const audioCtx=new (window.AudioContext||webkitAudioContext)();
+    STATE.audioContext=audioCtx;
+    const source=audioCtx.createMediaStreamSource(stream);
+    const analyser=audioCtx.createAnalyser();
+    analyser.fftSize=256;
+    source.connect(analyser);
+    STATE.analyser=analyser;
+
+    // 3. 初始化状态
+    STATE.isMonitoring=true;
+    STATE.startTime=now();
+    STATE.isCalibrating=true;
+    STATE.quietSamples=[];
+    STATE.calibrationCount=0;
+    STATE.events=[];
+    STATE.rollCount=0;
+    STATE.rollTimestamps=[];
+    STATE.chartData=[];
+    STATE.rollMarkers=[];
+    STATE.rawVolumes=[];
+    STATE.recordings=[];
+    STATE.isInNoise=false;
+    STATE.alarmTriggered=false;
+
+    // 4. 更新UI
+    btnStart.disabled=true;
+    btnStop.disabled=false;
+    btnSaveChart.disabled=false;
+    btnExport.disabled=false;
+    monitorStatus.textContent='🔴 睡眠监测中...';
+    eventList.innerHTML='<div style="text-align:center;color:#555588;font-size:13px;padding:20px 0">校准中，请保持安静...</div>';
+    eventCountBadge.textContent='0';
+    soundEventCount.textContent='🎤 事件：0';
+    rollCount.textContent='0';
+
+    // 5. 清空图表
+    const ctx=STATE.chartCtx;
+    ctx.clearRect(0,0,sleepChart.width,sleepChart.height);
+
+    // 6. 开始各功能
+    startTimer();
+    await requestWakeLock();
+    startBackgroundKeepAlive();
+    startAvgCollection();
+    processVolume();
+
+    // 7. 重启闹钟检测
+    if(STATE.alarmEnabled) startAlarmCheck();
+
+    toast('✅ 开始睡眠监测，屏幕将保持常亮');
+  }catch(e){
+    if(e.name==='NotAllowedError'){
+      toast('❌ 请允许麦克风权限后重试');
+    }else{
+      toast('❌ 启动失败：'+e.message);
+      console.error(e);
+    }
+  }
+});
+
+/* ===== 停止监测 ===== */
+btnStop.addEventListener('click',()=>{
+  if(!STATE.isMonitoring) return;
+
+  // 1. 停止所有
+  STATE.isMonitoring=false;
+  stopTimer();
+  stopAvgCollection();
+  stopAlarmCheck();
+  releaseWakeLock();
+  stopBackgroundKeepAlive();
+
+  // 2. 停止麦克风
+  if(STATE.micStream){
+    STATE.micStream.getTracks().forEach(t=>t.stop());
+    STATE.micStream=null;
+  }
+  if(STATE.audioContext){
+    STATE.audioContext.close();
+    STATE.audioContext=null;
+  }
+  STATE.analyser=null;
+
+  // 3. 停止正在进行的录音
+  if(STATE.mediaRecorder&&STATE.mediaRecorder.state==='recording'){
+    STATE.mediaRecorder.stop();
+  }
+
+  // 4. 更新UI
+  btnStart.disabled=false;
+  btnStop.disabled=true;
+  monitorStatus.textContent='✅ 监测已停止';
+
+  // 5. 最后一次更新图表
+  if(STATE.rawVolumes.length>0){
+    const avg=STATE.rawVolumes.reduce((a,b)=>a+b,0)/STATE.rawVolumes.length;
+    const elapsed=(now()-STATE.startTime)/60000;
+    STATE.chartData.push({minute:elapsed,avgVolume:avg});
+    STATE.rawVolumes=[];
+    updateChart();
+  }
+
+  // 6. 显示总结
+  if(STATE.events.length>0||STATE.rollCount>0){
+    showSummary();
+    saveHistory();
+  }else{
+    toast('⏹ 监测已停止（无事件记录）');
+  }
+
+  // 7. 如果录音有内容，显示卡片
+  if(STATE.recordings.length>0){
+    recordingsCard.classList.remove('hidden');
+  }
+});
+
+/* ===== 初始化 ===== */
+function init(){
+  initCanvas();
+  initRollDetection();
+
+  // 桌面端模拟翻身检测（如果设备不支持加速度计）
+  // 按键盘 R 键模拟翻身
+  document.addEventListener('keydown',(e)=>{
+    if(e.key==='r'||e.key==='R'){
+      if(STATE.isMonitoring){
+        STATE.rollCount++;
+        STATE.rollTimestamps.push(now());
+        rollCount.textContent=STATE.rollCount;
+        STATE.rollMarkers.push({time:now(),minute:(now()-STATE.startTime)/60000});
+        toast('🔄 手动翻身+1（模拟）');
+      }
+    }
+  });
+
+  console.log('🌙 睡眠监测助手已加载');
+  if('serviceWorker'in navigator){navigator.serviceWorker.register('sw.js').then(()=>console.log('✅ PWA就绪，可添加到桌面')).catch(e=>console.warn('Service Worker:',e.message))}
+  console.log('💡 提示：按 R 键可模拟翻身（桌面调试用）');
+}
+
+// 页面加载完成启动
+if(document.readyState==='complete'){
+  init();
+}else{
+  window.addEventListener('load',init);
+}
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
